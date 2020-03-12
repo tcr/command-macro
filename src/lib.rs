@@ -359,7 +359,7 @@ pub fn commandify(value: String) -> Result<Command, Error> {
                     }
                     ensure!(line.len() >= 2, "Not enough arguments in export; expected at least 1, found {}", line.len() - 1);
                     for item in &line[1..] {
-                        let mut items = item.splitn(2, "=").collect::<Vec<_>>();
+                        let items = item.splitn(2, "=").collect::<Vec<_>>();
                         ensure!(items.len() > 0, "Expected export of the format NAME=VALUE");
                         env.insert(items[0].to_string(), items[1].to_string());
                     }
