@@ -7,7 +7,8 @@ repository = "http://github.com/tcr/commandspec"
 version = "0.12.2"
 
 [dependencies]
-failure = "0.1.1"
+thiserror = "1.0"
+anyhow = "1.0"
 shlex = "0.1.1"
 lazy_static = "1.0.0"
 log = "0.4.4"

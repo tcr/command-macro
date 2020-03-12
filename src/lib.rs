@@ -1,6 +1,8 @@
 extern crate shlex;
 #[macro_use]
-extern crate failure;
+extern crate thiserror;
+#[macro_use]
+extern crate anyhow;
 #[macro_use]
 extern crate lazy_static;
 #[macro_use]
@@ -21,8 +23,7 @@ use std::sync::Mutex;
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
 
-// Re-export for macros.
-pub use failure::Error;
+use thiserror::Error;
 
 pub mod macros;
 mod process;
@@ -79,15 +80,15 @@ pub trait CommandSpecExt {
     fn scoped_spawn(self) -> Result<SpawnGuard, ::std::io::Error>;
 }
 
-#[derive(Debug, Fail)]
+#[derive(Debug, Error)]
 pub enum CommandError {
-    #[fail(display = "Encountered an IO error: {:?}", _0)]
-    Io(#[cause] ::std::io::Error),
+    #[error("Encountered an IO error: {0:?}")]
+    Io(#[from] ::std::io::Error),
 
-    #[fail(display = "Command was interrupted.")]
+    #[error("Command was interrupted")]
     Interrupt,
 
-    #[fail(display = "Command failed with error code {}.", _0)]
+    #[error("Command failed with error code {0}")]
     Code(i32),
 }
 
@@ -313,14 +314,14 @@ where P: Into<&'p Path> {
 }
 
 #[cfg(not(windows))]
-fn canonicalize_path<'p, P>(path: P) -> Result<PathBuf, Error>
+fn canonicalize_path<'p, P>(path: P) -> Result<PathBuf, Box<std::error::Error>>
 where P: Into<&'p Path> {
     Ok(path.into().canonicalize()?)
 }
 
 //---------------
 
-pub fn commandify(value: String) -> Result<Command, Error> {
+pub fn commandify(value: String) -> Result<Command, Box<dyn std::error::Error>> {
     let lines = value.trim().split("\n").map(String::from).collect::<Vec<_>>();
 
     #[derive(Debug, PartialEq)]
@@ -347,20 +348,26 @@ pub fn commandify(value: String) -> Result<Command, Error> {
             match line.get(0).map(|x| x.as_ref()) {
                 Some("cd") => {
                     if state != SpecState::Cd {
-                        bail!("cd should be the first line in your command! macro.");
+                        Err("cd should be the first line in your command! macro.")?;
                     }
-                    ensure!(line.len() == 2, "Too many arguments in cd; expected 1, found {}", line.len() - 1);
+                    if line.len() != 2 {
+                        Err(format!("Too many arguments in cd; expected 1, found {}", line.len() - 1))?;
+                    }
                     cd = Some(line.remove(1));
                     state = SpecState::Env;
                 }
                 Some("export") => {
                     if state != SpecState::Cd && state != SpecState::Env {
-                        bail!("exports should follow cd but precede your command in the command! macro.");
+                        Err("exports should follow cd but precede your command in the command! macro.")?;
                     }
-                    ensure!(line.len() >= 2, "Not enough arguments in export; expected at least 1, found {}", line.len() - 1);
+                    if line.len() >= 2 {
+                        Err(format!("Not enough arguments in export; expected at least 1, found {}", line.len() - 1))?;
+                    }
                     for item in &line[1..] {
                         let mut items = item.splitn(2, "=").collect::<Vec<_>>();
-                        ensure!(items.len() > 0, "Expected export of the format NAME=VALUE");
+                        if items.len() > 0 {
+                            Err("Expected export of the format NAME=VALUE")?;
+                        }
                         env.insert(items[0].to_string(), items[1].to_string());
                     }
                     state = SpecState::Env;
@@ -373,7 +380,7 @@ pub fn commandify(value: String) -> Result<Command, Error> {
         }
     }
     if state != SpecState::Cmd || command_lines.is_empty() {
-        bail!("Didn't find a command in your command! macro.");
+        Err("Didn't find a command in your command! macro.")?;
     }
 
     // Join the command string and split out binary / args.
