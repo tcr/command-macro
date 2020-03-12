@@ -18,14 +18,14 @@ macro_rules! execute {
     ($fmt:expr, $( $id:ident = $value:expr ),* $(,)*) => (
         {
             use $crate::{CommandSpecExt};
-            command!($fmt, $( $id = $value ),*).unwrap().execute()
+            $crate::command!($fmt, $( $id = $value ),*).unwrap().execute()
         }
     );
 }
 
 #[macro_export]
 macro_rules! sh_command {
-    ($fmt:expr) => ( sh_command!($fmt,) );
+    ($fmt:expr) => ( $crate::sh_command!($fmt,) );
     ($fmt:expr, $( $id:ident = $value:expr ),* $(,)*) => (
         $crate::commandify(
             format!(
@@ -44,7 +44,7 @@ macro_rules! sh_execute {
     ($fmt:expr, $( $id:ident = $value:expr ),* $(,)*) => (
         {
             use $crate::{CommandSpecExt};
-            sh_command!($fmt, $( $id = $value ),*).unwrap().execute()
+            $crate::sh_command!($fmt, $( $id = $value ),*).unwrap().execute()
         }
     );
 }
